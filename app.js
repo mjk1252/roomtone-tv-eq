@@ -5,6 +5,16 @@ const PRESETS = {
   10: { centers: [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000], labels: ['31 Hz', '62 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', '8 kHz', '16 kHz'] }
 };
 
+const SWEEP = {
+  startHz: 30,
+  endHz: 16000,
+  durationSeconds: 12,
+  autoSweepOffsets: [3.5, 17.5],
+  manualSweepOffsets: [0, 14],
+  autoEndSeconds: 40,
+  manualEndSeconds: 36.5
+};
+
 const els = {
   start: document.querySelector('#startButton'), preset: document.querySelector('#eqPreset'), profile: document.querySelector('#profileName'),
   card: document.querySelector('.live-card'), dot: document.querySelector('#liveStatusDot'), status: document.querySelector('#liveStatusText'),
@@ -52,28 +62,42 @@ function rmsLevel(data) {
   const rms = Math.sqrt(sumSquares / data.length);
   return rms > 0 ? 20 * Math.log10(rms) : -100;
 }
-function bandLevels(data, sampleRate, centers) {
-  const binHz = sampleRate / (data.length * 2);
-  return centers.map((center, index) => {
-    const lower = index === 0 ? center / Math.sqrt(centers[1] / center) : Math.sqrt(centers[index - 1] * center);
-    const upper = index === centers.length - 1 ? center * Math.sqrt(center / centers[index - 1]) : Math.sqrt(center * centers[index + 1]);
-    let weightedPower = 0, count = 0;
-    for (let i = Math.max(1, Math.ceil(lower / binHz)); i < Math.min(data.length, Math.floor(upper / binHz)); i += 1) {
-      if (Number.isFinite(data[i])) {
-        weightedPower += (10 ** (data[i] / 10)) * (i * binHz); count += 1;
-      }
-    }
-    return count ? 10 * Math.log10(weightedPower / count) : -100;
+function rmsRange(samples, start, end) {
+  const first = clamp(Math.floor(start), 0, samples.length);
+  const last = clamp(Math.floor(end), first + 1, samples.length);
+  let sumSquares = 0;
+  for (let index = first; index < last; index += 1) sumSquares += samples[index] * samples[index];
+  return Math.sqrt(sumSquares / Math.max(1, last - first));
+}
+function analyseSweeps(chunks, totalSamples, sampleRate, sweepStarts, preset) {
+  const samples = new Float32Array(totalSamples);
+  let writeAt = 0;
+  chunks.forEach(chunk => { samples.set(chunk, writeAt); writeAt += chunk.length; });
+  const ratio = SWEEP.endHz / SWEEP.startHz;
+  const frequencyTime = frequency => Math.log(frequency / SWEEP.startHz) / Math.log(ratio) * SWEEP.durationSeconds;
+  const absoluteLevels = preset.centers.map((center, index) => {
+    const lower = Math.max(SWEEP.startHz, index === 0 ? center / Math.sqrt(preset.centers[1] / center) : Math.sqrt(preset.centers[index - 1] * center));
+    const upper = Math.min(SWEEP.endHz, index === preset.centers.length - 1 ? center * Math.sqrt(center / preset.centers[index - 1]) : Math.sqrt(center * preset.centers[index + 1]));
+    const startOffset = frequencyTime(lower), endOffset = frequencyTime(upper);
+    const powers = sweepStarts.map(sweepStart => {
+      const trim = Math.min(0.08, Math.max(0, (endOffset - startOffset) / 8));
+      const rms = rmsRange(samples, sweepStart + (startOffset + trim) * sampleRate, sweepStart + (endOffset - trim) * sampleRate);
+      return rms * rms;
+    });
+    const meanPower = powers.reduce((sum, power) => sum + power, 0) / powers.length;
+    return 10 * Math.log10(Math.max(meanPower, 1e-12));
   });
+  let peak = 0;
+  for (let index = 0; index < samples.length; index += 1) peak = Math.max(peak, Math.abs(samples[index]));
+  return { absoluteLevels, peakDbfs: peak ? 20 * Math.log10(peak) : -100 };
 }
 function formatAdjustment(value) {
   if (value === 0) return 'Leave';
   return `${value > 0 ? '+' : '−'}${Math.abs(value)} dB`;
 }
-function finishMeasurement(sums, frameCount, preset) {
+function finishMeasurement(absoluteLevels, preset, peakDbfs) {
   stopListening();
   els.manual.hidden = true;
-  const absoluteLevels = sums.map(sum => 10 * Math.log10(sum / frameCount));
   const middle = median(absoluteLevels);
   const raw = absoluteLevels.map(value => value - middle);
   const smoothed = raw.map((value, index) => {
@@ -81,14 +105,16 @@ function finishMeasurement(sums, frameCount, preset) {
     return previous === undefined || next === undefined ? value : value * 0.6 + previous * 0.2 + next * 0.2;
   });
   const adjustments = smoothed.map(value => {
-    const proposed = Math.round(clamp(-value, -6, 6));
-    return Math.abs(proposed) < 1 ? 0 : proposed;
+    if (value > 0.75) return Math.round(clamp(-value, -3, 0));
+    if (value < -1.5 && value > -5) return Math.round(clamp(-value, 0, 2));
+    return 0;
   });
   currentResult = {
-    app: 'RoomTone TV EQ', version: 1, measuredAt: new Date().toISOString(), profile: els.profile.value.trim() || 'My TV',
+    app: 'RoomTone TV EQ', version: 2, method: 'dual logarithmic sine sweep', measuredAt: new Date().toISOString(), profile: els.profile.value.trim() || 'My TV',
     preset: `${preset.centers.length}-band`, frequencies: preset.centers, labels: preset.labels,
     responseDb: smoothed.map(value => Math.round(value * 10) / 10), suggestedAdjustmentsDb: adjustments,
-    note: 'Approximate listening-position measurement made with a device microphone.'
+    peakDbfs: Math.round(peakDbfs * 10) / 10,
+    note: 'Dual-sweep listening-position measurement made with a device microphone. Deep room nulls are not boosted.'
   };
   els.recommendations.replaceChildren(...preset.labels.map((label, index) => {
     const row = document.createElement('div'); row.className = 'rec-row';
@@ -97,7 +123,7 @@ function finishMeasurement(sums, frameCount, preset) {
     value.className = adjustments[index] < 0 ? 'cut' : adjustments[index] === 0 ? 'flat' : '';
     row.append(name, value); return row;
   }));
-  setLive('MEASUREMENT COMPLETE', 'Response captured', 'Review the suggested changes below, apply them on the TV, then measure again.');
+  setLive('DUAL SWEEP COMPLETE', 'Response captured', 'The two sweeps were averaged. Review the conservative changes below, then measure again after applying them.');
   els.start.disabled = false;
   els.start.innerHTML = '<span class="button-icon" aria-hidden="true"></span> Start listening';
   els.meter.style.width = '0%'; els.level.textContent = 'Done'; els.results.hidden = false;
@@ -113,17 +139,33 @@ async function startMeasurement() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 }, video: false });
     audioContext = new (window.AudioContext || window.webkitAudioContext)(); await audioContext.resume();
     const source = audioContext.createMediaStreamSource(stream), analyser = audioContext.createAnalyser();
-    analyser.fftSize = 8192; analyser.minDecibels = -110; analyser.maxDecibels = -10; analyser.smoothingTimeConstant = 0.45; source.connect(analyser);
-    const preset = PRESETS[els.preset.value], spectrum = new Float32Array(analyser.frequencyBinCount), waveform = new Float32Array(analyser.fftSize), ambientReadings = [];
-    const sums = preset.centers.map(() => 0); let frameCount = 0, phase = 'ambient', phaseStarted = performance.now(), loudSince = null, measurementStarted = null;
-    let manualRequested = false;
-    const measurementDuration = 18000;
+    analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.35; source.connect(analyser);
+    const preset = PRESETS[els.preset.value], waveform = new Float32Array(analyser.fftSize), ambientReadings = [], recordedChunks = [];
+    let recordedSamples = 0, phase = 'ambient', phaseStarted = performance.now(), loudSince = null, loudStartSample = null, referenceSample = null, captureEndSample = null, sweepStarts = null;
+    const appendChunk = chunk => { recordedChunks.push(chunk); recordedSamples += chunk.length; };
+    let recorder;
+    const silentGain = audioContext.createGain(); silentGain.gain.value = 0; silentGain.connect(audioContext.destination);
+    if (audioContext.audioWorklet && window.AudioWorkletNode) {
+      await audioContext.audioWorklet.addModule('recorder-worklet.js?v=3');
+      recorder = new AudioWorkletNode(audioContext, 'roomtone-recorder');
+      recorder.port.onmessage = event => appendChunk(event.data);
+      source.connect(recorder); recorder.connect(silentGain);
+    } else {
+      recorder = audioContext.createScriptProcessor(4096, 1, 1);
+      recorder.onaudioprocess = event => appendChunk(new Float32Array(event.inputBuffer.getChannelData(0)));
+      source.connect(recorder); recorder.connect(silentGain);
+    }
     els.start.textContent = 'Listening…';
     els.manual.hidden = false;
-    els.manual.onclick = () => { manualRequested = true; els.manual.hidden = true; };
-    setLive('LISTENING FOR TRACK', 'Now play the test track', 'Keep this device still. Measurement begins when the pink noise is detected.', true);
+    els.manual.textContent = 'I hear the first sweep — start now';
+    els.manual.onclick = () => {
+      referenceSample = recordedSamples;
+      sweepStarts = SWEEP.manualSweepOffsets.map(offset => referenceSample + offset * audioContext.sampleRate);
+      captureEndSample = referenceSample + SWEEP.manualEndSeconds * audioContext.sampleRate;
+      phase = 'measuring'; els.manual.hidden = true;
+    };
+    setLive('LISTENING FOR SYNC', 'Now play the new sweep track', 'RoomTone will lock onto the opening noise burst, then record two rising sweeps.', true);
     const tick = now => {
-      analyser.getFloatFrequencyData(spectrum);
       analyser.getFloatTimeDomainData(waveform);
       const level = rmsLevel(waveform), meterPercent = clamp((level + 70) * 2, 2, 100);
       els.meter.style.width = `${meterPercent}%`; els.level.textContent = `${Math.round(level)} dB`;
@@ -133,14 +175,17 @@ async function startMeasurement() {
       } else if (phase === 'waiting') {
         const ambient = ambientReadings.length ? median(ambientReadings) : -75;
         const threshold = Math.min(-28, Math.max(-65, ambient + 6));
-        if (manualRequested || level > threshold) {
-          loudSince ??= now;
-          if (manualRequested || now - loudSince > 900) {
-            phase = 'measuring'; measurementStarted = now;
+        if (level > threshold) {
+          if (loudSince === null) { loudSince = now; loudStartSample = recordedSamples; }
+          if (now - loudSince > 650) {
+            referenceSample = loudStartSample;
+            sweepStarts = SWEEP.autoSweepOffsets.map(offset => referenceSample + offset * audioContext.sampleRate);
+            captureEndSample = referenceSample + SWEEP.autoEndSeconds * audioContext.sampleRate;
+            phase = 'measuring';
             els.manual.hidden = true;
-            setLive('MEASURING · 18 SECONDS', 'Hold still', 'Keep the room quiet while RoomTone maps the frequency response.', true);
+            setLive('SYNC LOCKED', 'Hold still', 'The first logarithmic sweep will begin after the quiet gap.', true);
           }
-        } else loudSince = null;
+        } else { loudSince = null; loudStartSample = null; }
         if (now - phaseStarted > 60000) {
           stopListening(); els.start.disabled = false; els.manual.hidden = true;
           els.start.innerHTML = '<span class="button-icon" aria-hidden="true"></span> Try again';
@@ -148,11 +193,20 @@ async function startMeasurement() {
           return;
         }
       } else if (phase === 'measuring') {
-        const levels = bandLevels(spectrum, audioContext.sampleRate, preset.centers);
-        levels.forEach((value, index) => { sums[index] += 10 ** (value / 10); }); frameCount += 1;
-        const remaining = Math.max(0, Math.ceil((measurementDuration - (now - measurementStarted)) / 1000));
-        els.status.textContent = `MEASURING · ${remaining} SECOND${remaining === 1 ? '' : 'S'}`;
-        if (now - measurementStarted >= measurementDuration) { finishMeasurement(sums, Math.max(1, frameCount), preset); return; }
+        const elapsed = (recordedSamples - referenceSample) / audioContext.sampleRate;
+        const autoAligned = sweepStarts[0] - referenceSample > audioContext.sampleRate;
+        const firstStart = autoAligned ? SWEEP.autoSweepOffsets[0] : 0;
+        const secondStart = autoAligned ? SWEEP.autoSweepOffsets[1] : SWEEP.manualSweepOffsets[1];
+        if (elapsed < firstStart) els.status.textContent = 'SYNC LOCKED · QUIET GAP';
+        else if (elapsed < firstStart + SWEEP.durationSeconds) els.status.textContent = 'MEASURING · SWEEP 1 OF 2';
+        else if (elapsed < secondStart) els.status.textContent = 'MEASURING · QUIET GAP';
+        else if (elapsed < secondStart + SWEEP.durationSeconds) els.status.textContent = 'MEASURING · SWEEP 2 OF 2';
+        else els.status.textContent = 'VALIDATING RESPONSE';
+        if (recordedSamples >= captureEndSample) {
+          setLive('ANALYSING SWEEPS', 'Calculating response', 'Averaging both passes and translating them to your TV controls.', true);
+          const analysis = analyseSweeps(recordedChunks, recordedSamples, audioContext.sampleRate, sweepStarts, preset);
+          finishMeasurement(analysis.absoluteLevels, preset, analysis.peakDbfs); return;
+        }
       }
       animationId = requestAnimationFrame(tick);
     };

@@ -1,6 +1,6 @@
 # RoomTone TV EQ
 
-A private, static TV equalizer assistant. The phone or laptop listens to the included pink-noise reference track from the normal seating position and suggests practical TV EQ changes.
+A private, static TV equalizer assistant. The phone or laptop listens to two logarithmic sine sweeps from the normal seating position, averages their response, and suggests practical TV EQ changes. A synchronization burst aligns independent TV and phone clocks; a final pink-noise segment validates the capture.
 
 ## Deploy to GitHub Pages
 

@@ -1,49 +1,51 @@
 {
   "title": "RoomTone TV Calibration Track",
-  "version": 1,
+  "version": 2,
   "sampleRate": 48000,
   "channels": 2,
-  "durationSeconds": 32.0,
-  "measurementSignal": "deterministic pink noise",
-  "measurementStartSeconds": 5.0,
-  "measurementDurationSeconds": 24.0,
-  "peakDbfs": -10,
+  "durationSeconds": 42.0,
+  "measurementSignal": "two deterministic exponential sine sweeps with synchronization and validation noise",
+  "sweepStartHz": 30,
+  "sweepEndHz": 16000,
+  "sweepDurationSeconds": 12.0,
+  "sweepStartSeconds": [
+    5.5,
+    19.5
+  ],
+  "validationStartSeconds": 33.5,
+  "peakDbfs": -12,
   "segments": [
     {
       "name": "silence",
       "durationSeconds": 2.0
     },
     {
-      "name": "ready tone 1",
-      "durationSeconds": 0.25
+      "name": "synchronization pink-noise burst",
+      "durationSeconds": 1.5
     },
     {
-      "name": "gap",
-      "durationSeconds": 0.25
+      "name": "quiet gap",
+      "durationSeconds": 2.0
     },
     {
-      "name": "ready tone 2",
-      "durationSeconds": 0.25
+      "name": "logarithmic sweep 1: 30 Hz to 16 kHz",
+      "durationSeconds": 12.0
     },
     {
-      "name": "gap",
-      "durationSeconds": 0.25
+      "name": "quiet gap",
+      "durationSeconds": 2.0
     },
     {
-      "name": "ready tone 3",
-      "durationSeconds": 0.25
+      "name": "logarithmic sweep 2: 30 Hz to 16 kHz",
+      "durationSeconds": 12.0
     },
     {
-      "name": "pre-roll",
-      "durationSeconds": 1.75
+      "name": "room decay gap",
+      "durationSeconds": 2.0
     },
     {
-      "name": "pink noise",
-      "durationSeconds": 24.0
-    },
-    {
-      "name": "complete tone",
-      "durationSeconds": 0.5
+      "name": "pink-noise validation",
+      "durationSeconds": 6.0
     },
     {
       "name": "silence",

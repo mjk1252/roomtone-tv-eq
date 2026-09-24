@@ -7,7 +7,7 @@
   <meta name="description" content="Measure your TV from the sofa and get practical equalizer recommendations.">
   <title>RoomTone TV EQ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071119'/%3E%3Cpath d='M12 38h7V26h-7zm11 8h7V18h-7zm11-4h7V22h-7zm11-9h7v-7h-7z' fill='%234ee1b8'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -63,9 +63,9 @@
           <div class="track-icon" aria-hidden="true">♪</div>
           <div class="track-copy">
             <strong>RoomTone calibration track</strong>
-            <span>32 seconds · pink-noise reference</span>
+            <span>42 seconds · dual logarithmic sweep</span>
           </div>
-          <a class="track-link" href="assets/roomtone-tv-calibration.wav" download>Download <span aria-hidden="true">↓</span></a>
+          <a class="track-link" href="assets/roomtone-tv-calibration.wav?v=2" download>Download <span aria-hidden="true">↓</span></a>
         </div>
 
         <div class="action-row">
@@ -104,7 +104,7 @@
         <div class="recommend-card">
           <p class="step-label">APPLY THESE CHANGES</p>
           <div id="recommendations" class="recommendations"></div>
-          <p class="result-note">Start here, then remeasure. Changes within ±1 dB are intentionally left alone.</p>
+          <p class="result-note">Start here, then remeasure. Adjustments are deliberately conservative, and deep room nulls are not boosted.</p>
         </div>
       </div>
       <div class="result-actions">
@@ -119,6 +119,6 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
