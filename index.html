@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071119">
+  <meta name="description" content="Measure your TV from the sofa and get practical equalizer recommendations.">
+  <title>RoomTone TV EQ</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071119'/%3E%3Cpath d='M12 38h7V26h-7zm11 8h7V18h-7zm11-4h7V22h-7zm11-9h7v-7h-7z' fill='%234ee1b8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="RoomTone home">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>RoomTone</span>
+    </a>
+    <span class="privacy-pill"><span></span> Stays on this device</span>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">TV sound calibration</p>
+        <h1 id="page-title">Tune the room,<br><em>not your ears.</em></h1>
+      </div>
+      <p class="lede">Play our reference track through your TV. Your phone listens from the sofa and translates what it hears into practical EQ changes.</p>
+    </section>
+
+    <section class="workspace">
+      <div class="measure-card">
+        <div class="card-head">
+          <div>
+            <span class="step-label">01 · SET UP</span>
+            <h2>Prepare your TV</h2>
+          </div>
+          <span class="duration">About 1 minute</span>
+        </div>
+
+        <div class="setup-grid">
+          <label class="field">
+            <span>TV profile name</span>
+            <input id="profileName" type="text" maxlength="40" value="Living room TV" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Available EQ controls</span>
+            <select id="eqPreset">
+              <option value="3">Bass / Mid / Treble</option>
+              <option value="5" selected>5-band EQ</option>
+              <option value="7">7-band EQ</option>
+              <option value="10">10-band EQ</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="instructions">
+          <div class="instruction"><b>1</b><p>Set the TV to its normal volume and temporarily turn off surround, dialogue boost, and auto-volume.</p></div>
+          <div class="instruction"><b>2</b><p>Place this device at ear height where you usually sit, with its microphone uncovered.</p></div>
+          <div class="instruction"><b>3</b><p>Tap <strong>Start listening</strong>, then play the calibration track through the TV.</p></div>
+        </div>
+
+        <div class="track-row">
+          <div class="track-icon" aria-hidden="true">♪</div>
+          <div class="track-copy">
+            <strong>RoomTone calibration track</strong>
+            <span>32 seconds · pink-noise reference</span>
+          </div>
+          <a class="track-link" href="assets/roomtone-tv-calibration.wav" download>Download <span aria-hidden="true">↓</span></a>
+        </div>
+
+        <div class="action-row">
+          <button id="startButton" class="primary-button" type="button">
+            <span class="button-icon" aria-hidden="true"></span>
+            Start listening
+          </button>
+          <p id="supportNote">Use Safari or Chrome and allow microphone access when asked.</p>
+        </div>
+      </div>
+
+      <aside class="live-card" aria-labelledby="live-title">
+        <div class="live-topline"><span id="liveStatusDot"></span><span id="liveStatusText">MICROPHONE READY</span></div>
+        <div class="orb-wrap" aria-hidden="true">
+          <div class="orb-rings"><span></span><span></span><span></span></div>
+          <div class="orb"><span class="mic-glyph"></span></div>
+        </div>
+        <h2 id="live-title">Ready when you are</h2>
+        <p id="liveDescription">The measurement starts automatically when it hears the reference noise.</p>
+        <div class="meter" aria-hidden="true"><span id="levelMeter"></span></div>
+        <div class="live-meta"><span>INPUT LEVEL</span><strong id="levelText">— dB</strong></div>
+      </aside>
+    </section>
+
+    <section id="results" class="results" hidden aria-live="polite">
+      <div class="results-head">
+        <div><p class="eyebrow">Measurement complete</p><h2>Your suggested TV settings</h2></div>
+        <button id="measureAgain" class="secondary-button" type="button">Measure again</button>
+      </div>
+      <div class="results-grid">
+        <div class="chart-card">
+          <div class="chart-legend"><span><i class="measured"></i>Measured</span><span><i class="target"></i>Target</span></div>
+          <canvas id="responseChart" height="260" aria-label="Measured frequency response chart"></canvas>
+        </div>
+        <div class="recommend-card">
+          <p class="step-label">APPLY THESE CHANGES</p>
+          <div id="recommendations" class="recommendations"></div>
+          <p class="result-note">Start here, then remeasure. Changes within ±1 dB are intentionally left alone.</p>
+        </div>
+      </div>
+      <div class="result-actions">
+        <button id="saveResult" class="primary-button compact" type="button">Save on this device</button>
+        <button id="exportResult" class="secondary-button" type="button">Export results</button>
+      </div>
+    </section>
+
+    <section class="fine-print">
+      <p><strong>Good to know</strong> — This is a listening-position check, not a laboratory calibration. Your room and device microphone are part of the measurement.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
