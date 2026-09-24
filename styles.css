@@ -81,6 +81,8 @@ input:focus, select:focus { border-color: var(--mint); box-shadow: 0 0 0 3px rgb
 @keyframes rotate { to { transform: rotate(360deg); } }
 .live-card h2 { margin-bottom: 10px; }
 .live-card > p { max-width: 270px; margin: 0; color: var(--muted); font-size: .86rem; }
+.manual-start { margin-top: 14px; padding: 7px 11px; color: var(--mint); background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: .74rem; font-weight: 750; }
+.manual-start:hover { border-color: var(--mint); }
 .meter { width: 100%; height: 5px; margin-top: auto; border-radius: 5px; background: #061017; overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--mint), var(--amber)); transition: width .12s linear; }
 .live-meta { width: 100%; display: flex; justify-content: space-between; margin-top: 8px; color: var(--faint); font-size: .62rem; letter-spacing: .1em; }

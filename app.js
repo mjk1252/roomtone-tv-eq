@@ -11,7 +11,7 @@ const els = {
   title: document.querySelector('#live-title'), description: document.querySelector('#liveDescription'), meter: document.querySelector('#levelMeter'),
   level: document.querySelector('#levelText'), results: document.querySelector('#results'), recommendations: document.querySelector('#recommendations'),
   canvas: document.querySelector('#responseChart'), again: document.querySelector('#measureAgain'), save: document.querySelector('#saveResult'),
-  export: document.querySelector('#exportResult'), toast: document.querySelector('#toast')
+  export: document.querySelector('#exportResult'), toast: document.querySelector('#toast'), manual: document.querySelector('#manualStart')
 };
 
 let audioContext = null;
@@ -46,16 +46,11 @@ function stopListening() {
   if (audioContext && audioContext.state !== 'closed') audioContext.close();
   audioContext = null;
 }
-function overallLevel(data, sampleRate) {
-  const binHz = sampleRate / (data.length * 2);
-  let power = 0, count = 0;
-  for (let i = 1; i < data.length; i += 1) {
-    const frequency = i * binHz;
-    if (frequency >= 120 && frequency <= 12000 && Number.isFinite(data[i])) {
-      power += 10 ** (data[i] / 10); count += 1;
-    }
-  }
-  return count ? 10 * Math.log10(power / count) : -100;
+function rmsLevel(data) {
+  let sumSquares = 0;
+  for (let index = 0; index < data.length; index += 1) sumSquares += data[index] * data[index];
+  const rms = Math.sqrt(sumSquares / data.length);
+  return rms > 0 ? 20 * Math.log10(rms) : -100;
 }
 function bandLevels(data, sampleRate, centers) {
   const binHz = sampleRate / (data.length * 2);
@@ -77,6 +72,7 @@ function formatAdjustment(value) {
 }
 function finishMeasurement(sums, frameCount, preset) {
   stopListening();
+  els.manual.hidden = true;
   const absoluteLevels = sums.map(sum => 10 * Math.log10(sum / frameCount));
   const middle = median(absoluteLevels);
   const raw = absoluteLevels.map(value => value - middle);
@@ -118,29 +114,35 @@ async function startMeasurement() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)(); await audioContext.resume();
     const source = audioContext.createMediaStreamSource(stream), analyser = audioContext.createAnalyser();
     analyser.fftSize = 8192; analyser.minDecibels = -110; analyser.maxDecibels = -10; analyser.smoothingTimeConstant = 0.45; source.connect(analyser);
-    const preset = PRESETS[els.preset.value], spectrum = new Float32Array(analyser.frequencyBinCount), ambientReadings = [];
+    const preset = PRESETS[els.preset.value], spectrum = new Float32Array(analyser.frequencyBinCount), waveform = new Float32Array(analyser.fftSize), ambientReadings = [];
     const sums = preset.centers.map(() => 0); let frameCount = 0, phase = 'ambient', phaseStarted = performance.now(), loudSince = null, measurementStarted = null;
+    let manualRequested = false;
     const measurementDuration = 18000;
     els.start.textContent = 'Listening…';
+    els.manual.hidden = false;
+    els.manual.onclick = () => { manualRequested = true; els.manual.hidden = true; };
     setLive('LISTENING FOR TRACK', 'Now play the test track', 'Keep this device still. Measurement begins when the pink noise is detected.', true);
     const tick = now => {
       analyser.getFloatFrequencyData(spectrum);
-      const level = overallLevel(spectrum, audioContext.sampleRate), meterPercent = clamp((level + 75) * 1.7, 2, 100);
+      analyser.getFloatTimeDomainData(waveform);
+      const level = rmsLevel(waveform), meterPercent = clamp((level + 70) * 2, 2, 100);
       els.meter.style.width = `${meterPercent}%`; els.level.textContent = `${Math.round(level)} dB`;
       if (phase === 'ambient') {
         if (Number.isFinite(level)) ambientReadings.push(level);
         if (now - phaseStarted > 1400) { phase = 'waiting'; phaseStarted = now; }
       } else if (phase === 'waiting') {
-        const ambient = ambientReadings.length ? median(ambientReadings) : -75, threshold = Math.max(-72, ambient + 8);
-        if (level > threshold) {
+        const ambient = ambientReadings.length ? median(ambientReadings) : -75;
+        const threshold = Math.min(-28, Math.max(-65, ambient + 6));
+        if (manualRequested || level > threshold) {
           loudSince ??= now;
-          if (now - loudSince > 1200) {
+          if (manualRequested || now - loudSince > 900) {
             phase = 'measuring'; measurementStarted = now;
+            els.manual.hidden = true;
             setLive('MEASURING · 18 SECONDS', 'Hold still', 'Keep the room quiet while RoomTone maps the frequency response.', true);
           }
         } else loudSince = null;
         if (now - phaseStarted > 60000) {
-          stopListening(); els.start.disabled = false;
+          stopListening(); els.start.disabled = false; els.manual.hidden = true;
           els.start.innerHTML = '<span class="button-icon" aria-hidden="true"></span> Try again';
           setLive('TRACK NOT FOUND', 'We could not hear the track', 'Raise the TV volume slightly and restart the measurement.');
           return;
@@ -156,7 +158,7 @@ async function startMeasurement() {
     };
     animationId = requestAnimationFrame(tick);
   } catch (error) {
-    stopListening(); els.start.disabled = false; els.start.innerHTML = '<span class="button-icon" aria-hidden="true"></span> Try again';
+    stopListening(); els.start.disabled = false; els.manual.hidden = true; els.start.innerHTML = '<span class="button-icon" aria-hidden="true"></span> Try again';
     const denied = error?.name === 'NotAllowedError' || error?.name === 'SecurityError', timeout = error?.message === 'track-timeout';
     setLive(denied ? 'ACCESS BLOCKED' : timeout ? 'TRACK NOT FOUND' : 'MICROPHONE ERROR', denied ? 'Microphone permission is off' : timeout ? 'We could not hear the track' : 'We could not start the microphone', denied ? 'Enable microphone access for this site in your browser settings, then try again.' : timeout ? 'Raise the TV volume slightly and restart the measurement.' : 'Check that no other app is using the microphone and try again.');
   }

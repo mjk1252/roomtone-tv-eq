@@ -7,7 +7,7 @@
   <meta name="description" content="Measure your TV from the sofa and get practical equalizer recommendations.">
   <title>RoomTone TV EQ</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071119'/%3E%3Cpath d='M12 38h7V26h-7zm11 8h7V18h-7zm11-4h7V22h-7zm11-9h7v-7h-7z' fill='%234ee1b8'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -85,6 +85,7 @@
         </div>
         <h2 id="live-title">Ready when you are</h2>
         <p id="liveDescription">The measurement starts automatically when it hears the reference noise.</p>
+        <button id="manualStart" class="manual-start" type="button" hidden>Start measurement now</button>
         <div class="meter" aria-hidden="true"><span id="levelMeter"></span></div>
         <div class="live-meta"><span>INPUT LEVEL</span><strong id="levelText">— dB</strong></div>
       </aside>
@@ -118,6 +119,6 @@
   </main>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
